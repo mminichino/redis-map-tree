@@ -1,0 +1,43 @@
+{
+  "id": 1,
+  "hash": "1234-5678-9101-1121",
+  "firstName": "john",
+  "lastName": "doe",
+  "random": "text",
+  "number": "12345",
+  "zip": 12345,
+  "decimal": 12.345,
+  "boolean": true,
+  "null": null,
+  "basic-object": {
+    "sub-object": {
+      "state": "enabled"
+    }
+  },
+  "object": {
+    "id": 1,
+    "item": "test"
+  },
+  "complex-object": {
+    "id": 1,
+    "item": "test",
+    "sub-object": {
+      "id": 1,
+      "item": "test"
+    }
+  },
+  "object-list": [
+    {
+      "id": 1,
+      "item": "test1"
+    },
+    {
+      "id": 2,
+      "item": "test2"
+    }
+  ],
+  "primitive-list": [
+    "one",
+    "two"
+  ]
+}

@@ -2,13 +2,16 @@ package com.codelry.redis.maptree.config;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.SslOptions;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
+import io.lettuce.core.support.ConnectionPoolSupport;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,7 +100,7 @@ public class RedisConfig {
     return DefaultClientResources.create();
   }
 
-  @Bean
+  @Bean(name = "pool-1")
   public GenericObjectPoolConfig<StatefulConnection<?, ?>> redisPoolConfig() {
     GenericObjectPoolConfig<StatefulConnection<?, ?>> poolConfig = new GenericObjectPoolConfig<>();
     poolConfig.setMaxTotal(maxActive);
@@ -107,6 +110,21 @@ public class RedisConfig {
     poolConfig.setTestOnBorrow(true);
     poolConfig.setTestOnReturn(true);
     poolConfig.setTestWhileIdle(true);
+    poolConfig.setJmxEnabled(false);
+    return poolConfig;
+  }
+
+  @Bean(name = "pool-2")
+  public GenericObjectPoolConfig<StatefulRedisModulesConnection<String, String>> redisModulesPoolConfig() {
+    GenericObjectPoolConfig<StatefulRedisModulesConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
+    poolConfig.setMaxTotal(maxActive);
+    poolConfig.setMaxIdle(maxIdle);
+    poolConfig.setMinIdle(minIdle);
+    poolConfig.setMaxWait(maxWait);
+    poolConfig.setTestOnBorrow(true);
+    poolConfig.setTestOnReturn(true);
+    poolConfig.setTestWhileIdle(true);
+    poolConfig.setJmxEnabled(false);
     return poolConfig;
   }
 
@@ -139,6 +157,7 @@ public class RedisConfig {
       options.sslOptions(sslOptions);
     }
 
+    clientConfigBuilder.clientOptions(options.build());
     LettuceClientConfiguration clientConfig = clientConfigBuilder.build();
 
     return new LettuceConnectionFactory(config, clientConfig);
@@ -191,7 +210,7 @@ public class RedisConfig {
 
   @Bean(destroyMethod = "close")
   @DependsOn("redisConnectionFactory")
-  public StatefulRedisModulesConnection<String, String> modulesConnection() throws Exception {
+  public RedisModulesClient modulesConnection() throws Exception {
     RedisURI.Builder builder = RedisURI.builder()
         .withHost(redisHost)
         .withPort(redisPort)
@@ -205,7 +224,6 @@ public class RedisConfig {
     }
 
     ClientOptions.Builder options = ClientOptions.builder()
-        .jsonParser(GsonJsonParser::new)
         .autoReconnect(true)
         .pingBeforeActivateConnection(true);
 
@@ -214,13 +232,33 @@ public class RedisConfig {
       options.sslOptions(sslOptions);
     }
 
-    ClientOptions clientOptions = options.build();
-
     RedisModulesClient client = RedisModulesClient.create(builder.build());
+    client.setOptions(options.build());
+    return client;
+  }
 
-    client.setOptions(clientOptions);
+  @Bean
+  public StatefulRedisModulesConnection<String, String> redisModulesConnection(
+      RedisModulesClient redisModulesClient) {
+    return redisModulesClient.connect();
+  }
 
-    return client.connect();
+  @Bean
+  public GenericObjectPool<StatefulRedisModulesConnection<String, String>> redisConnectionPool(
+      RedisModulesClient redisModulesClient) {
+    return ConnectionPoolSupport.createGenericObjectPool(redisModulesClient::connect, redisModulesPoolConfig());
+  }
+
+  @Bean
+  public RedisModulesTemplate redisModulesTemplate(
+      GenericObjectPool<StatefulRedisModulesConnection<String, String>> pool) {
+    return new RedisModulesTemplate(pool);
+  }
+
+  @Bean
+  public RedisModulesCommands<String, String> redisModulesCommands(
+      StatefulRedisModulesConnection<String, String> connection) {
+    return connection.sync();
   }
 
   @Bean
